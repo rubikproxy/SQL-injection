@@ -50,7 +50,8 @@ collection = db['student_collection']
 
 # Use hashed passwords
 admin_username = 'sanjay'
-admin_password_hash = generate_password_hash('sanjay', method='sha256')
+admin_password_hash = generate_password_hash('sanjay', method='pbkdf2:sha256')
+
 
 api = Api(app)
 
