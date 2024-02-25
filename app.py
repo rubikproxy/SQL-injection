@@ -1,5 +1,7 @@
 import logging
 from flask import Flask, render_template, request, redirect, url_for, session, Markup, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from markupsafe import Markup
 from flask_session import Session
 from pymongo import MongoClient
 from bson import ObjectId
