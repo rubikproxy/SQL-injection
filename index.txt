@@ -1,0 +1,270 @@
+from flask import Flask, render_template, request, redirect, url_for, session, Markup, flash
+from flask_session import Session
+from pymongo import MongoClient
+from bson import ObjectId
+import os
+from flask import session
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_wtf import CSRFProtect
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField, validators
+from flask import get_flashed_messages
+from datetime import timedelta
+import functools
+from flask_cors import CORS
+import time
+
+
+app = Flask(__name__)
+app = Flask(__name__, static_folder='static', template_folder='templates')
+
+app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_COOKIE_SECURE'] = True  
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_KEY_PREFIX'] = 'san'
+app.config['SESSION_TYPE'] = 'filesystem'
+
+csrf = CSRFProtect(app)
+CORS(app, supports_credentials=True)
+
+SESSION_TYPE = 'filesystem' 
+app.config.from_object(__name__)
+Session(app)
+
+client = MongoClient('mongodb+srv://finalyear:68VBgQHEehmm0mJ4@cluster0.oz1cn45.mongodb.net/')
+db = client['student_database']
+collection = db['student_collection']
+blacklist_collection = db['blacklist_collection']
+
+admin_username = 'sanjay'
+admin_password_hash = generate_password_hash('sanjay', method='scrypt')
+
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[validators.InputRequired()])
+    password = PasswordField('Password', validators=[validators.InputRequired()])
+    submit = SubmitField('Login')
+
+class StudentForm(FlaskForm):
+    first_name = StringField('First Name', validators=[validators.InputRequired()])
+    last_name = StringField('Last Name', validators=[validators.InputRequired()])
+    phone = StringField('Phone', validators=[validators.InputRequired()])
+    address = StringField('Address', validators=[validators.InputRequired()])
+    pincode = StringField('Pincode', validators=[validators.InputRequired()])
+    email = StringField('Email', validators=[validators.InputRequired(), validators.Email()])
+    gender = StringField('Gender', validators=[validators.InputRequired()])
+    dob = StringField('Date of Birth', validators=[validators.InputRequired()])
+    submit = SubmitField('Submit')
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
+
+def is_authenticated():
+    return session.get('authenticated', False)
+
+
+def track_failed_attempts():
+    user_ip = request.remote_addr
+    failed_attempts_key = f'failed_attempts_{user_ip}'
+    failed_attempts = session.get(failed_attempts_key, 0)
+
+    if failed_attempts >= 3 and session.get('last_failed_attempt_time', 0) > time.time() - 900:
+        blacklist_collection.insert_one({'ip': user_ip, 'reason': 'Excessive Failed Attempts'})
+        flash('Your IP has been blacklisted due to excessive failed attempts.', 'danger')
+        return render_template('error.html', error_message='Your IP is blacklisted', status_code=403), 403
+
+    if request.method == 'POST':
+        form = StudentForm(request.form)
+        if not form.validate():
+            failed_attempts += 1
+            session[failed_attempts_key] = failed_attempts
+            session['last_failed_attempt_time'] = time.time()
+
+def block_blacklisted_ip():
+    user_ip = request.remote_addr
+    blacklisted_ip = blacklist_collection.find_one({'ip': user_ip})
+    if blacklisted_ip:
+        reason = blacklisted_ip.get('reason', 'Your IP is blacklisted')
+        return render_template('error.html', error_message=reason, status_code=403), 403
+
+def require_not_blacklisted(view):
+    @functools.wraps(view)
+    def decorated_view(*args, **kwargs):
+        if block_blacklisted_ip() is not None:
+            return block_blacklisted_ip()
+        return view(*args, **kwargs)
+    return decorated_view
+
+def sanitize_input(data):
+    return {key: value if not isinstance(value, str) else value.replace('$', '') for key, value in data.items()}
+
+@app.before_request
+def security_checks():
+    track_failed_attempts()
+    block_blacklisted_ip()
+
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('error.html', error_message='Page not found', status_code=404), 404
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    return render_template('error.html', error_message='Internal Server Error', status_code=500), 500
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    return render_template('error.html', error_message=str(error), status_code=500), 500
+
+@app.route('/')
+def index():
+    form = StudentForm()
+    messages = get_flashed_messages()
+    return render_template('index.html', form=form, messages=messages)
+
+@app.route('/submit', methods=['POST'])
+@require_not_blacklisted
+def submit():
+    form = StudentForm(request.form)
+
+    if form.validate():
+        first_name = form.first_name.data
+        last_name = form.last_name.data
+        phone = form.phone.data
+        address = form.address.data
+        pincode = form.pincode.data
+        email = form.email.data
+        gender = form.gender.data
+        dob = form.dob.data
+
+        student_data = {
+            'first_name': first_name,
+            'last_name': last_name,
+            'phone': phone,
+            'address': address,
+            'pincode': pincode,
+            'email': email,
+            'gender': gender,
+            'date_of_birth': dob
+        }
+
+        try:
+            sanitized_data = sanitize_input(student_data)
+            collection.insert_one(sanitized_data)
+            flash('Thank you for your submission!', 'success')
+        except Exception as e:
+            flash(f'An error occurred: {str(e)}', 'danger')
+
+        return redirect(url_for('index'))
+    else:
+        flash('Invalid input. Please check your entries.', 'danger')
+        return redirect(url_for('index'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def admin_login():
+    form = LoginForm()
+    if request.method == 'POST' and form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+        if username == admin_username and check_password_hash(admin_password_hash, password):
+            session.clear()
+            session['authenticated'] = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return 'Invalid Username and Password'
+
+    return render_template('login.html', form=form)
+
+
+    return render_template('login.html', form=form)
+
+@app.route('/dashboard')
+def admin_dashboard():
+    if not is_authenticated():
+        return redirect(url_for('admin_login'))
+
+    try:
+        student_data = list(collection.find())
+        for student in student_data:
+            student['first_name'] = Markup(student['first_name'])
+            student['last_name'] = Markup(student['last_name'])
+            student['phone'] = Markup(student['phone'])
+            student['address'] = Markup(student['address'])
+            student['pincode'] = Markup(student['pincode'])
+            student['email'] = Markup(student['email'])
+            student['gender'] = Markup(student['gender'])
+            student['date_of_birth'] = Markup(student['date_of_birth'])
+    except Exception as e:
+        error_message = f'An error occurred: {str(e)}'
+        return render_template('error.html', error_message=error_message)
+
+    return render_template('dashboard.html', student_data=student_data)
+
+@app.route('/edit_student/<student_id>', methods=['GET', 'POST'])
+def edit_student(student_id):
+    if not is_authenticated():
+        return redirect(url_for('admin_login'))
+    form = StudentForm()
+
+    try:
+        student = collection.find_one({'_id': ObjectId(student_id)})
+    except Exception as e:
+        flash(f'An error occurred: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            collection.update_one(
+                {'_id': ObjectId(student_id)},
+                {
+                    '$set': {
+                        'first_name': form.first_name.data,
+                        'last_name': form.last_name.data,
+                        'phone': form.phone.data,
+                        'address': form.address.data,
+                        'pincode': form.pincode.data,
+                        'date_of_birth': form.dob.data,
+                    }
+                }
+            )
+            flash('Student information updated successfully!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            flash(f'An error occurred: {str(e)}', 'danger')
+
+
+    form.first_name.data = student['first_name']
+    form.last_name.data = student['last_name']
+    form.phone.data = student['phone']
+    form.address.data = student['address']
+    form.pincode.data = student['pincode']
+    form.email.data = student['email']
+    form.gender.data = student['gender']
+    form.dob.data = student['date_of_birth']
+
+    return render_template('edit_student.html', student=student, form=form)
+
+@app.route('/delete_student/<student_id>')
+def delete_student(student_id):
+    if not is_authenticated():
+        return redirect(url_for('admin_login'))
+
+    try:
+        collection.delete_one({'_id': ObjectId(student_id)})
+        flash('Student deleted successfully!', 'success')
+    except Exception as e:
+        flash(f'An error occurred: {str(e)}', 'danger')
+
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/logout')
+def logout():
+    session.pop('authenticated', None)
+    return redirect(url_for('admin_login'))
+
+if __name__ == '__main__':
+    app.run(debug=True)

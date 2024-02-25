@@ -1,0 +1,29 @@
+/* Add your custom styles here */
+
+/* Example styles for the table */
+#dataTable {
+  font-size: 14px;
+}
+
+#dataTable th, #dataTable td {
+  text-align: center;
+}
+
+#dataTable th {
+  background-color: #343a40;
+  color: #fff;
+}
+
+#dataTable tbody tr:nth-of-type(odd) {
+  background-color: #f8f9fa;
+}
+
+#dataTable a.btn {
+  margin-right: 5px;
+}
+
+/* Example style for success message */
+#successMessage {
+  color: #28a745;
+  font-weight: bold;
+}

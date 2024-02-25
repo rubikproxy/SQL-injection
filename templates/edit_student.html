@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/edit.css">
+    <title>Edit Student</title>
+</head>
+<body>
+    <form action="/edit_student/{{ student._id }}" method="POST">
+        <!-- Add the CSRF token -->
+        {{ form.csrf_token }}
+        <h1>Edit Student</h1>
+        
+        <label for="first_name">First Name:</label>
+        <input type="text" id="first_name" name="first_name" value="{{ student.first_name }}" required>
+        
+        <label for="last_name">Last Name:</label>
+        <input type="text" id="last_name" name="last_name" value="{{ student.last_name }}" required>
+
+        {% if 'phone' in student %}
+            <label for="phone">Phone:</label>
+            <input type="text" id="phone" name="phone" value="{{ student.phone }}" required>
+        {% endif %}
+
+        <label for="address">Address:</label>
+        <input type="text" id="address" name="address" value="{{ student.address }}" required>
+
+        <label for="pincode">Pincode:</label>
+        <input type="text" id="pincode" name="pincode" value="{{ student.pincode }}" required>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" value="{{ student.email }}" required>
+
+        <label for="gender">Gender:</label>
+        <select id="gender" name="gender" required>
+            <option value="Male" {% if student.gender == 'Male' %} selected {% endif %}>Male</option>
+            <option value="Female" {% if student.gender == 'Female' %} selected {% endif %}>Female</option>
+            <option value="Other" {% if student.gender == 'Other' %} selected {% endif %}>Other</option>
+        </select>
+
+        <label for="dob">Date of Birth:</label>
+        <input type="date" id="dob" name="dob" value="{{ student.date_of_birth }}" required>
+
+        <button type="submit">Save Changes</button>
+    </form>
+</body>
+</html>
