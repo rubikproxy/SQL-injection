@@ -1,4 +1,3 @@
-import logging
 from flask import Flask, render_template, request, redirect, url_for, session, Markup, flash
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from markupsafe import Markup
@@ -19,9 +18,6 @@ import re
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from wtforms.validators import InputRequired, Email, Length, Regexp
-
-# Set up logging
-logging.basicConfig(filename='error.log', level=logging.ERROR)
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -51,7 +47,6 @@ collection = db['student_collection']
 # Use hashed passwords
 admin_username = 'sanjay'
 admin_password_hash = generate_password_hash('sanjay', method='pbkdf2:sha256')
-
 
 api = Api(app)
 
@@ -102,8 +97,6 @@ class StudentResource(Resource):
         try:
             student = collection.find_one({'_id': ObjectId(student_id)})
             if not student:
-                # Log detailed error for debugging
-                logging.error('Student not found for ID: {}'.format(student_id))
                 return {'error': _('Student not found')}, 404
 
             # Escape user-generated content using Markup to prevent XSS
@@ -119,8 +112,6 @@ class StudentResource(Resource):
             return {'student': student}, 200
 
         except Exception as e:
-            # Log detailed error for debugging
-            logging.error(f'Error in StudentResource GET: {str(e)}')
             return {'error': _('Internal Server Error')}, 500
 
 class StudentListResource(Resource):
@@ -144,43 +135,32 @@ class StudentListResource(Resource):
             return {'students': students}, 200
 
         except Exception as e:
-            # Log detailed error for debugging
-            logging.error(f'Error in StudentListResource GET: {str(e)}')
             return {'error': _('Internal Server Error')}, 500
 
 api.add_resource(StudentResource, '/students/<student_id>')
 api.add_resource(StudentListResource, '/students')
 
-
 def is_authenticated():
     return session.get('authenticated', False) == True
-
 
 # Custom error handling middleware
 @app.errorhandler(404)
 def page_not_found(error):
-    # Log detailed error for debugging
-    logging.error(f'Error 404 - Page not found: {str(error)}')
     return render_template('error.html', error_message=_('Page not found'), status_code=404), 404
 
 # Define a custom error handler for 500 Internal Server Error
 @app.errorhandler(500)
 def internal_server_error(error):
-    # Log detailed error for debugging
-    logging.error(f'Error 500 - Internal Server Error: {str(error)}')
     return render_template('error.html', error_message=_('Internal Server Error'), status_code=500), 500
 
 # Define a custom error handler for other exceptions
 @app.errorhandler(Exception)
 def handle_exception(error):
-    # Log detailed error for debugging
-    logging.error(f'Unhandled Exception: {str(error)}')
     return render_template('error.html', error_message=_('Something went wrong!'), status_code=500), 500
 
 @app.route('/')
 def index():
-    form = StudentForm()  # Create an instance of the StudentForm
-    # Pass flash messages to the template context
+    form = StudentForm()
     messages = get_flashed_messages()
     return render_template('index.html', form=form, messages=messages)
 
@@ -213,8 +193,6 @@ def submit():
             collection.insert_one(student_data)
             flash(_('Thank you for your submission!'), 'success')
         except Exception as e:
-            # Log detailed error for debugging
-            logging.error(f'Error in submit route: {str(e)}')
             flash(_('An error occurred. Please try again later.'), 'danger')
 
         return redirect(url_for('index'))
@@ -224,7 +202,7 @@ def submit():
 
 @app.route('/login', methods=['GET', 'POST'])
 def admin_login():
-    form = LoginForm()  # Create an instance of the LoginForm
+    form = LoginForm()
     if request.method == 'POST' and form.validate_on_submit():
         username = form.username.data
         password = form.password.data
@@ -245,7 +223,6 @@ def admin_dashboard():
         return redirect(url_for('admin_login'))
     try:
         student_data = list(collection.find())
-        # Escape user-generated content using Markup to prevent XSS
         for student in student_data:
             student['first_name'] = Markup(student['first_name'])
             student['last_name'] = Markup(student['last_name'])
@@ -256,11 +233,7 @@ def admin_dashboard():
             student['gender'] = Markup(student['gender'])
             student['date_of_birth'] = Markup(student['date_of_birth'])
     except Exception as e:
-        # Log detailed error for debugging
-        logging.error(f'Error in admin_dashboard route: {str(e)}')
-        # Display a user-friendly error message
         error_message = _('An error occurred while fetching student data. Please try again later.')
-        # Enhance error handling: Detailed Errors
         return render_template('error.html', error_message=error_message, detailed_error=str(e), status_code=500)
 
     return render_template('dashboard.html', student_data=student_data)
@@ -271,7 +244,6 @@ def edit_student(student_id):
         flash(_('Unauthorized access. Please log in.'), 'danger')
         return redirect(url_for('admin_login'))
 
-    # Create an instance of the StudentForm
     form = StudentForm()
 
     try:
@@ -298,8 +270,6 @@ def edit_student(student_id):
             flash(_('Student information updated successfully!'), 'success')
             return redirect(url_for('admin_dashboard'))
         except Exception as e:
-            # Log detailed error for debugging
-            logging.error(f'Error in edit_student route: {str(e)}')
             flash(_('An error occurred. Please try again later.'), 'danger')
 
     form.first_name.data = student['first_name']
@@ -323,12 +293,9 @@ def delete_student(student_id):
         collection.delete_one({'_id': ObjectId(student_id)})
         flash(_('Student deleted successfully!'), 'success')
     except Exception as e:
-        # Log detailed error for debugging
-        logging.error(f'Error in delete_student route: {str(e)}')
         flash(_('An error occurred. Please try again later.'), 'danger')
 
     return redirect(url_for('admin_dashboard'))
-
 
 @app.route('/logout')
 def logout():
