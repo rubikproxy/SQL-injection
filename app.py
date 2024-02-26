@@ -1,5 +1,7 @@
 import logging
 from flask import Flask, render_template, request, redirect, url_for, session, Markup, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from markupsafe import Markup
 from flask_session import Session
 from pymongo import MongoClient
 from bson import ObjectId
@@ -48,7 +50,8 @@ collection = db['student_collection']
 
 # Use hashed passwords
 admin_username = 'sanjay'
-admin_password_hash = generate_password_hash('sanjay', method='sha256')
+admin_password_hash = generate_password_hash('sanjay', method='pbkdf2:sha256')
+
 
 api = Api(app)
 
