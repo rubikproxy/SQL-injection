@@ -100,7 +100,7 @@ class StudentResource(Resource):
             student = collection.find_one({'_id': ObjectId(student_id)})
             if not student:
                 # Log detailed error for debugging
-                logging.error(f'Student not found for ID: {student_id}')
+                logging.error('Student not found for ID: {}'.format(student_id))
                 return {'error': _('Student not found')}, 404
 
             # Escape user-generated content using Markup to prevent XSS
