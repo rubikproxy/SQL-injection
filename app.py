@@ -20,7 +20,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from wtforms.validators import InputRequired, Email, Length, Regexp
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode='gevent')
 CORS(app)  # Enable CORS for all routes
 
 # Set the secret key before initializing the Session
@@ -31,10 +31,13 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HT
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
-# Remove the line: Session(app)
-SESSION_TYPE = 'filesystem'
+# Remove the following lines:
+app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_COOKIE_SECURE'] = False
+app.config['SECRET_KEY'] = os.urandom(24)
 app.config.from_object(__name__)
 Session(app)
+
 
 # Babel configuration
 babel = Babel(app)
