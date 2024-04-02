@@ -10,3 +10,4 @@ Flask-RESTful
 Flask-Cors
 MarkupSafe
 gunicorn
+flask_babel
