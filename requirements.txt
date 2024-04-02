@@ -9,3 +9,4 @@ Babel
 Flask-RESTful
 Flask-Cors
 MarkupSafe
+gunicorn
