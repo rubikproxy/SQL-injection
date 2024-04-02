@@ -1,0 +1,11 @@
+Flask
+Flask-SocketIO
+Flask-Session
+pymongo
+Werkzeug
+Flask-WTF
+WTForms
+Babel
+Flask-RESTful
+Flask-Cors
+MarkupSafe
